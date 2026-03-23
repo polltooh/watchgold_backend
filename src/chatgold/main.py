@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from rag_site.azure_search import AzureSearchStore
 from rag_site.azure_openai import AzureOpenAIEmbedder, AzureOpenAIChat
 from rag_site.config import Settings
+import asyncio
 import sys
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -35,6 +36,18 @@ search_store = None
 chat_model = None
 
 
+async def _daily_feed_refresh():
+    """Background task: refresh feeds at startup, then every 24 hours."""
+    while True:
+        try:
+            print("[scheduler] Running daily feed refresh...")
+            get_daily_summary()
+            print("[scheduler] Daily feed refresh complete.")
+        except Exception as e:
+            print(f"[scheduler] Feed refresh failed: {e}")
+        await asyncio.sleep(24 * 60 * 60)  # 24 hours
+
+
 @app.on_event("startup")
 async def startup_event():
     global embedder, search_store, chat_model
@@ -58,6 +71,9 @@ async def startup_event():
         print("Successfully initialized Azure RAG components.")
     except Exception as e:
         print(f"Failed to initialize Azure components: {e}")
+
+    # Start the daily feed refresh background task
+    asyncio.create_task(_daily_feed_refresh())
 
 # --- API Endpoints ---
 
