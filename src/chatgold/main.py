@@ -5,11 +5,11 @@ from rag_site.azure_openai import AzureOpenAIEmbedder, AzureOpenAIChat
 from rag_site.config import Settings
 import asyncio
 import sys
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
 import os
-import json
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -36,16 +36,34 @@ search_store = None
 chat_model = None
 
 
+def _seconds_until_midnight() -> float:
+    """Return seconds from now until the next local midnight."""
+    now = datetime.now()
+    midnight = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    return (midnight - now).total_seconds()
+
+
 async def _daily_feed_refresh():
-    """Background task: refresh feeds at startup, then every 24 hours."""
+    """Background task: pre-warm feeds at startup, then refresh every day at midnight."""
+    # Pre-warm once at startup so the cache is ready immediately
+    try:
+        print("[scheduler] Pre-warming feed cache at startup...")
+        get_daily_summary()
+        print("[scheduler] Startup feed pre-warm complete.")
+    except Exception as e:
+        print(f"[scheduler] Startup pre-warm failed: {e}")
+
+    # Then loop: sleep until next midnight, refresh, repeat
     while True:
+        secs = _seconds_until_midnight()
+        print(f"[scheduler] Next feed refresh in {secs/3600:.1f}h (at midnight).")
+        await asyncio.sleep(secs)
         try:
-            print("[scheduler] Running daily feed refresh...")
+            print("[scheduler] Running midnight feed refresh...")
             get_daily_summary()
-            print("[scheduler] Daily feed refresh complete.")
+            print("[scheduler] Midnight feed refresh complete.")
         except Exception as e:
-            print(f"[scheduler] Feed refresh failed: {e}")
-        await asyncio.sleep(24 * 60 * 60)  # 24 hours
+            print(f"[scheduler] Midnight feed refresh failed: {e}")
 
 
 @app.on_event("startup")
