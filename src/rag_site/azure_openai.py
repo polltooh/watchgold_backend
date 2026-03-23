@@ -40,3 +40,11 @@ class AzureOpenAIChat:
             temperature=0
         )
         return response.choices[0].message.content
+
+    def generate_chat_answer(self, messages: list[dict]) -> str:
+        response = self.client.chat.completions.create(
+            model=self.chat_model,
+            messages=messages,
+            temperature=0
+        )
+        return response.choices[0].message.content
